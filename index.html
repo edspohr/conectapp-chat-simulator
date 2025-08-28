@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Chat para N8N</title>
+    <!-- Importamos Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Importamos Vue.js para la interactividad -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        /* Estilos personalizados inspirados en Conectapp */
+        :root {
+            --primary-color: #002C4D; /* Azul oscuro de Conectapp */
+            --secondary-color: #4AD991; /* Verde de Conectapp */
+            --background-color: #f0f2f5; /* Un gris claro similar a WhatsApp */
+            --user-message-bg: #dcf8c6; /* Verde claro para mensajes del usuario */
+            --agent-message-bg: #ffffff; /* Blanco para mensajes del agente */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+        }
+        /* Pequeña animación para la aparición de los mensajes */
+        .message-enter-active {
+            transition: all 0.3s ease;
+        }
+        .message-enter-from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div id="app" class="h-screen w-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+
+        <!-- Vista de Login -->
+        <div v-if="currentView === 'login'" class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-lg">
+            <div class="flex flex-col items-center mb-6">
+                <svg class="w-16 h-16 mb-4 text-[color:var(--primary-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                <h1 class="text-2xl font-bold text-[color:var(--primary-color)]">Chat con Agente</h1>
+                <p class="text-gray-500">Ingresa para iniciar la prueba</p>
+            </div>
+            
+            <!-- Formulario de Login -->
+            <form @submit.prevent="login">
+                <div class="mb-4">
+                    <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Tu Número de Teléfono</label>
+                    <input type="tel" id="phone" v-model="phoneNumber" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[color:var(--secondary-color)] focus:border-[color:var(--secondary-color)]" placeholder="Ej: 56912345678" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Clave de Acceso</label>
+                    <input type="password" id="password" v-model="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[color:var(--secondary-color)] focus:border-[color:var(--secondary-color)]" required>
+                </div>
+                
+                <!-- Mensaje de Error -->
+                <p v-if="errorMessage" class="text-red-500 text-sm mb-4 text-center">{{ errorMessage }}</p>
+
+                <button type="submit" class="w-full bg-[color:var(--primary-color)] text-white py-2.5 rounded-lg font-semibold hover:bg-opacity-90 transition-colors">
+                    Ingresar al Chat
+                </button>
+            </form>
+        </div>
+
+        <!-- Vista de Chat -->
+        <div v-else-if="currentView === 'chat'" class="w-full h-full max-w-4xl flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <!-- Cabecera del Chat -->
+            <header class="bg-[color:var(--primary-color)] text-white p-4 flex items-center shadow-md z-10">
+                 <svg class="w-10 h-10 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2V4a2 2 0 012-2h8a2 2 0 012 2v4z"></path></svg>
+                <div>
+                    <h2 class="text-lg font-bold">Agente Conectapp</h2>
+                    <p class="text-sm opacity-80">En línea</p>
+                </div>
+            </header>
+
+            <!-- Área de Mensajes -->
+            <main ref="messageContainer" class="flex-1 p-6 overflow-y-auto" style="background-image: url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg'); background-size: contain;">
+                <transition-group name="message" tag="div">
+                    <div v-for="message in messages" :key="message.id" class="flex mb-4" :class="message.sender === 'user' ? 'justify-end' : 'justify-start'">
+                        <div class="max-w-xs md:max-w-md lg:max-w-lg px-4 py-2 rounded-xl" :class="message.sender === 'user' ? 'bg-[color:var(--user-message-bg)]' : 'bg-[color:var(--agent-message-bg)] shadow-sm'">
+                            <p class="text-sm">{{ message.text }}</p>
+                            <p class="text-xs text-right mt-1" :class="message.sender === 'user' ? 'text-green-900 opacity-60' : 'text-gray-500'">{{ message.timestamp }}</p>
+                        </div>
+                    </div>
+                </transition-group>
+                 <!-- Indicador de "escribiendo..." -->
+                <div v-if="isTyping" class="flex justify-start mb-4">
+                    <div class="bg-[color:var(--agent-message-bg)] shadow-sm px-4 py-2 rounded-xl">
+                        <p class="text-sm text-gray-500 italic">Agente está escribiendo...</p>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Área de Envío -->
+            <footer class="bg-gray-100 p-4">
+                <form @submit.prevent="sendMessage" class="flex items-center">
+                    <input type="text" v-model="newMessage" class="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:ring-[color:var(--secondary-color)] focus:border-[color:var(--secondary-color)]" placeholder="Escribe un mensaje..." :disabled="isTyping" required>
+                    <button type="submit" class="ml-3 bg-[color:var(--secondary-color)] text-white p-3 rounded-full hover:bg-opacity-90 transition-colors disabled:opacity-50" :disabled="isTyping">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                    </button>
+                </form>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, nextTick } = Vue;
+
+        createApp({
+            // =================================================================
+            // 1. ESTADO DE LA APLICACIÓN (DATA)
+            // Aquí definimos todas las variables que nuestra aplicación necesita.
+            // =================================================================
+            setup() {
+                // --- Estado General ---
+                const currentView = ref('login'); // Controla qué vista se muestra: 'login' o 'chat'
+                const errorMessage = ref(''); // Almacena mensajes de error para el login
+                
+                // --- Datos de Usuario ---
+                const phoneNumber = ref(''); // Almacena el número de teléfono del usuario
+                const password = ref(''); // Almacena la clave ingresada
+                const fixedPassword = 'Conectapp2025'; // La clave correcta
+
+                // --- Estado del Chat ---
+                const messages = ref([]); // Un array para guardar todos los mensajes del chat
+                const newMessage = ref(''); // Vinculado al input para escribir un nuevo mensaje
+                const isTyping = ref(false); // Para mostrar el indicador "escribiendo..."
+
+                // --- Configuración del Webhook ---
+                // IMPORTANTE: Reemplaza esta URL con la URL de tu webhook de N8N
+                const webhookUrl = ref('https://espohr.app.n8n.cloud/webhook/8cd5c5d5-b48b-4361-8334-6509c1d6c7a8');
+
+                // Referencia al contenedor de mensajes para poder hacer scroll
+                const messageContainer = ref(null);
+
+                // =================================================================
+                // 2. MÉTODOS (FUNCIONES)
+                // Aquí definimos las acciones que puede realizar la aplicación.
+                // =================================================================
+
+                // --- Función para hacer scroll hacia el último mensaje ---
+                const scrollToBottom = async () => {
+                    // nextTick espera a que Vue actualice el DOM
+                    await nextTick();
+                    if (messageContainer.value) {
+                        messageContainer.value.scrollTop = messageContainer.value.scrollHeight;
+                    }
+                };
+                
+                // --- Función de Login ---
+                const login = () => {
+                    if (!phoneNumber.value) {
+                        errorMessage.value = 'Por favor, ingresa tu número de teléfono.';
+                        return;
+                    }
+                    if (password.value === fixedPassword) {
+                        // Si la clave es correcta, cambiamos a la vista de chat
+                        currentView.value = 'chat';
+                        errorMessage.value = ''; // Limpiamos cualquier error previo
+                        // Agregamos un mensaje de bienvenida del agente
+                        messages.value.push({
+                            id: Date.now(),
+                            text: '¡Hola! Bienvenido al simulador de chat. ¿En qué puedo ayudarte hoy?',
+                            sender: 'agent',
+                            timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+                        });
+                    } else {
+                        // Si la clave es incorrecta, mostramos un error
+                        errorMessage.value = 'La clave de acceso es incorrecta.';
+                    }
+                };
+
+                // --- Función para Enviar Mensajes ---
+                const sendMessage = async () => {
+                    const text = newMessage.value.trim();
+                    if (text === '') return; // No enviar mensajes vacíos
+
+                    // a) Agregamos el mensaje del usuario a la lista para mostrarlo en pantalla
+                    messages.value.push({
+                        id: Date.now(),
+                        text: text,
+                        sender: 'user',
+                        timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+                    });
+                    
+                    newMessage.value = ''; // Limpiamos el campo de texto
+                    isTyping.value = true; // Mostramos "escribiendo..."
+                    await scrollToBottom();
+
+                    // b) Preparamos los datos para enviar al webhook de N8N
+                    // Simulamos la estructura que nos diste como ejemplo.
+                    const payload = {
+                        body: {
+                            Body: text,
+                            From: `whatsapp:+${phoneNumber.value}`,
+                            To: "whatsapp:+14155238886", // Número del bot (fijo para la simulación)
+                            WaId: phoneNumber.value,
+                            ProfileName: "UsuarioPrueba", // Nombre de perfil simulado
+                            // Puedes añadir más campos fijos si tu flujo N8N los necesita
+                            SmsMessageSid: `SM${Math.random().toString(36).substring(2)}`,
+                            NumMedia: "0",
+                            SmsStatus: "received",
+                        },
+                        // También simulamos otras partes del objeto principal
+                        headers: { "user-agent": "ChatSimulator/1.0" },
+                        query: {},
+                    };
+
+                    // c) Enviamos la información al webhook usando fetch
+                    try {
+                        const response = await fetch(webhookUrl.value, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Error del servidor: ${response.status}`);
+                        }
+
+                        // Asumimos que N8N responde con un JSON que contiene la respuesta.
+                        // Por ejemplo: { "reply": "Esta es la respuesta del agente" }
+                        // Si tu flujo N8N responde con otra estructura, debes ajustarlo aquí.
+                        const agentResponse = await response.json();
+                        
+                        // d) Recibimos la respuesta y la mostramos en el chat
+                        if (agentResponse && agentResponse.reply) {
+                             messages.value.push({
+                                id: Date.now() + 1, // ID único
+                                text: agentResponse.reply,
+                                sender: 'agent',
+                                timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+                            });
+                        } else {
+                            // Mensaje de fallback si la respuesta no tiene el formato esperado
+                             messages.value.push({
+                                id: Date.now() + 1,
+                                text: "No he podido procesar la respuesta. Intenta de nuevo.",
+                                sender: 'agent',
+                                timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+                            });
+                        }
+
+                    } catch (error) {
+                        console.error('Error al enviar el mensaje al webhook:', error);
+                        messages.value.push({
+                            id: Date.now() + 1,
+                            text: "Hubo un problema de conexión con el agente. Por favor, revisa la URL del webhook y la consola.",
+                            sender: 'agent',
+                            timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+                        });
+                    } finally {
+                        isTyping.value = false; // Ocultamos "escribiendo..."
+                        await scrollToBottom();
+                    }
+                };
+
+                // =================================================================
+                // 3. RETORNO
+                // Exponemos las variables y métodos para que la plantilla HTML
+                // pueda usarlos.
+                // =================================================================
+                return {
+                    currentView,
+                    errorMessage,
+                    phoneNumber,
+                    password,
+                    messages,
+                    newMessage,
+                    isTyping,
+                    messageContainer,
+                    login,
+                    sendMessage
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
