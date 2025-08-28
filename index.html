@@ -129,7 +129,7 @@
 
                 // --- Configuración del Webhook ---
                 // IMPORTANTE: Reemplaza esta URL con la URL de tu webhook de N8N
-                const webhookUrl = ref('https://espohr.app.n8n.cloud/webhook/8cd5c5d5-b48b-4361-8334-6509c1d6c7a8');
+                const webhookUrl = ref('https://espohr.app.n8n.cloud/webhook/conectapp-chat-prueba');
 
                 // Referencia al contenedor de mensajes para poder hacer scroll
                 const messageContainer = ref(null);
@@ -193,7 +193,7 @@
                     const payload = {
                         body: {
                             Body: text,
-                            From: `whatsapp:+${phoneNumber.value}`,
+                            From: `whatsapp:${phoneNumber.value}`,
                             To: "whatsapp:+14155238886", // Número del bot (fijo para la simulación)
                             WaId: phoneNumber.value,
                             ProfileName: "UsuarioPrueba", // Nombre de perfil simulado
